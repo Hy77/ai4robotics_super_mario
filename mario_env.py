@@ -14,12 +14,12 @@ class MarioEnv:
         return self.env.action_space
 
     def reset(self):
-        # reset game env
-        state = self.env.reset()
+        # 只返回图像数据
+        state, _ = self.env.reset()
         return state
 
     def step(self, action):
-        # execute next step then return the feedback
+        # 只返回图像数据以及其他游戏相关的输出
         next_state, reward, terminated, truncated, info = self.env.step(action)
         return next_state, reward, terminated, truncated, info
 

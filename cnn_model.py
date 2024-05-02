@@ -24,10 +24,10 @@ class MarioCNN(nn.Module):
         return x
 
 
-# 确保使用正确的设备
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = MarioCNN().to(device)
-# 假设输入是一个批量的游戏屏幕捕获，每个屏幕的大小是 84x84，并且有3个颜色通道
-test_input = torch.rand(5, 3, 84, 84).to(device)  # 5是批量大小
-test_output = model(test_input)
-print("Output shape:", test_output.shape)  # 应该输出：(5, 256)
+# # 确保使用正确的设备
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# model = MarioCNN().to(device)
+# # 假设输入是一个批量的游戏屏幕捕获，每个屏幕的大小是 84x84，并且有3个颜色通道
+# test_input = torch.rand(5, 3, 84, 84).to(device)  # 5是批量大小
+# test_output = model(test_input)
+# print("Output shape:", test_output.shape)  # 应该输出：(5, 256)
