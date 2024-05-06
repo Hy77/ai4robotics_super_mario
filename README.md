@@ -22,6 +22,18 @@ This project implements a deep learning framework using a Convolutional Neural N
   ```
   pip install tensorboard
   ```
+  
+- **nes_py**: NES emulator
+
+  ```
+  pip install nes_py
+  ```
+
+- **gym_super_mario_bros**: Gym environment for Super Mario Bros
+
+  ```
+  pip install gym_super_mario_bros
+  ``
 
 ## Usage
 
