@@ -2,7 +2,7 @@ import torch
 import torchvision.transforms as T
 from mario_env import MarioEnv
 from cnn_model import MarioCNN
-# from dqn_model import MarioDQN
+from dqn_model import MarioDQN
 
 # Initialize Mario environment
 env = MarioEnv('SuperMarioBros-1-1-v0')
@@ -12,13 +12,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Initialize CNN and DQN models
 cnn = MarioCNN()
-# dqn = DQN(input_dim=256, output_dim=env.action_space.n)  # Adjust as necessary
+dqn = MarioDQN(input_dim=256, output_dim=env.action_space.n)  # Adjust as necessary
 
 # Load model weights
 cnn.load_state_dict(torch.load('cnn_models/cnn_model_ver1.pth'))
-# dqn.load_state_dict(torch.load('dqn_models/dqn_model_ver1.pth'))
+dqn.load_state_dict(torch.load('dqn_models/dqn_model_ver1.pth'))
 cnn.to(device)
-# dqn.to(device)
+dqn.to(device)
 
 # Define image preprocessing pipeline
 transform = T.Compose([
@@ -40,8 +40,8 @@ while not done:
         state_features = cnn(state)
 
         # TODO: Determine action from DQN (currently using random actions as a placeholder)
-        # action = dqn(state_features).max(1)[1].item()
-        action = env.action_space.sample()  # Placeholder for actual DQN decision
+        action = dqn(state_features).max(1)[1].item()
+        # action = env.action_space.sample()  # Placeholder for actual DQN decision
 
         # Execute the chosen action in the environment
         next_state, reward, done, info = env.step(action)
