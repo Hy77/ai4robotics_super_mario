@@ -32,7 +32,7 @@ transform = T.Compose([
 state = env.reset()
 state = transform(state).unsqueeze(0).to(device)  # Preprocess and add batch dimension
 
-for step in range(5000):
+for step in range(500):
     action = env.action_space.sample()
     next_state, reward, terminated, truncated, info = env.step(action)
     next_state = transform(next_state).unsqueeze(0).to(device)  # Preprocess the next state

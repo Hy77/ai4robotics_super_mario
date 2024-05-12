@@ -1,59 +1,80 @@
 import torch
-import torchvision.transforms as T
-from mario_env import MarioEnv
+import numpy as np
+from mario_env import make_env
 from cnn_model import MarioCNN
-from dqn_model import MarioDQN
+from dqn_model import Agent
+import torchvision.transforms as T
+import matplotlib.pyplot as plt
+import gym
+import imageio
+from pyvirtualdisplay import Display
+display = Display(visible=0, size=(1400, 900))
+display.start()
 
-# Initialize Mario environment
-env = MarioEnv('SuperMarioBros-1-1-v0')
-
-# Set device for model operations
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Initialize CNN and DQN models
-cnn = MarioCNN()
-dqn = MarioDQN(input_dim=256, output_dim=env.action_space.n)  # Adjust as necessary
-
-# Load model weights
-cnn.load_state_dict(torch.load('cnn_models/cnn_model_ver1.pth'))
-dqn.load_state_dict(torch.load('dqn_models/dqn_model_ver1.pth'))
-cnn.to(device)
-dqn.to(device)
-
-# Define image preprocessing pipeline
 transform = T.Compose([
-    T.ToPILImage(),  # Convert numpy array to PIL image
-    T.Resize((84, 84)),  # Resize image to match CNN input dimensions
-    T.ToTensor(),  # Convert PIL image to Tensor
-    T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # Normalize the image
+    T.ToTensor(),
+    T.Resize((84, 84)),
+    T.Normalize(mean=[0.5], std=[0.5])
 ])
 
-# Initialize environment
-state = env.reset()
-state = transform(state).unsqueeze(0).to(device)
+def process_state_image(state):
+    state = np.array(state)
+    state = np.squeeze(state)
+    state = np.transpose(state, (1, 2, 0))
+    state = transform(state)
+    state = state.unsqueeze(0)
+    return state.float().to(device)
 
-# Simulate a test loop
-done = False
-while not done:
-    with torch.no_grad():
-        # Extract features from the current state using CNN
-        state_features = cnn(state)
+env = make_env(skip_frames=1)
 
-        # TODO: Determine action from DQN (currently using random actions as a placeholder)
-        action = dqn(state_features).max(1)[1].item()
-        # action = env.action_space.sample()  # Placeholder for actual DQN decision
+action_size = env.action_space.n
 
-        # Execute the chosen action in the environment
+mario_cnn = torch.load('cnn_models/cnn_model_ver8.pth')
+mario_cnn.eval()
+
+agent = Agent(state_size=256, action_size=action_size)
+agent.model_local = torch.load('dqn_models/dqn_model_ver8.pth')
+agent.model_local.eval()
+
+num_episodes = 3
+scores = []
+max_x_pos = 0
+best_episode_frames = []
+
+for i_episode in range(1, num_episodes + 1):
+    state = env.reset()
+    state = process_state_image(state)
+    state_features = mario_cnn(state).squeeze().detach()
+    score = 0
+    done = False
+    episode_frames = []
+
+    while not done:
+        action = agent.act(state_features.cpu().numpy(), 0.1)
         next_state, reward, done, info = env.step(action)
-        next_state = transform(next_state).unsqueeze(0).to(device)
+        frame = env.render(mode='rgb_array')
+        episode_frames.append(frame.copy())  # 存储当前episode的帧
+        score += reward
+        next_state = process_state_image(next_state)
+        next_state_features = mario_cnn(next_state).squeeze().detach()
+        state_features = next_state_features
 
-        # Update state
-        state = next_state
+    scores.append(score)
+    print(f"Episode {i_episode}, Score: {score}")
 
-    if done:
-        # Reset the environment for the next test
-        state = env.reset()
-        state = transform(state).unsqueeze(0).to(device)
+    if info['x_pos'] > max_x_pos:
+        max_x_pos = info['x_pos']
+        best_episode_frames = episode_frames  # 更新最佳episode的帧
 
-# Close the environment after testing
 env.close()
+
+# 保存跑得最远的那个episode的视频
+video_path = 'videos'
+writer = imageio.get_writer(f'{video_path}/best_mario_run.mp4', fps=30)
+for frame in best_episode_frames:
+    writer.append_data(frame)
+writer.close()
+
+print(f"Best score: {max(scores)}")

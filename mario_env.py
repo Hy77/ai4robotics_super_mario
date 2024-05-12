@@ -1,28 +1,33 @@
+# mario_env.py
 import gym
-from nes_py.wrappers import JoypadSpace
 import gym_super_mario_bros
-from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
+from nes_py.wrappers import JoypadSpace
+from gym_super_mario_bros.actions import RIGHT_ONLY
+from gym.wrappers import FrameStack, GrayScaleObservation, TransformObservation
 
-class MarioEnv:
-    def __init__(self, gym_env):
-        self.env = gym_super_mario_bros.make(gym_env, apply_api_compatibility=True, render_mode="human")
-        self.env = JoypadSpace(self.env, SIMPLE_MOVEMENT)
 
-    @property
-    def action_space(self):
-        # return action space
-        return self.env.action_space
-
-    def reset(self):
-        # Returns image data only
-        state, _ = self.env.reset()
-        return state
+class SkipFrame(gym.Wrapper):
+    def __init__(self, env, skip):
+        super().__init__(env)
+        self._skip = skip
 
     def step(self, action):
-        # Returns image data and other game-related outputs only
-        next_state, reward, terminated, truncated, info = self.env.step(action)
-        return next_state, reward, terminated, truncated, info
+        total_reward = 0.0
+        done = False
+        for i in range(self._skip):
+            obs, reward, done, info = self.env.step(action)
+            total_reward += reward
+            if done:
+                break
+        return obs, total_reward, done, info
 
-    def close(self):
-        # turn off game env
-        self.env.close()
+
+def make_env(skip_frames):
+    env = gym_super_mario_bros.make('SuperMarioBros-v0')
+    env = SkipFrame(env, skip=skip_frames)
+    env = JoypadSpace(env, RIGHT_ONLY)
+    # env = JoypadSpace(env, [["right"], ["right", "A", "B"]])
+    env = GrayScaleObservation(env, keep_dim=True)
+    env = TransformObservation(env, f=lambda x: x / 255.)
+    env = FrameStack(env, num_stack=4)
+    return env
