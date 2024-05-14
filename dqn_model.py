@@ -51,7 +51,7 @@ class ReplayBuffer:
 
 
 class Agent:
-    def __init__(self, state_size, action_size, replay_buffer_size=200000, batch_size=32, gamma=0.99, tau=1e-3,
+    def __init__(self, state_size, action_size, replay_buffer_size=400000, batch_size=32, gamma=0.99, tau=1e-3,
                  lr=0.00025,
                  update_freq=4):
         self.state_size = state_size
