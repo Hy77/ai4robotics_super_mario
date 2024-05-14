@@ -103,7 +103,7 @@ class Agent:
             reward -= 500
 
         # 如果Mario掉下去并且执行跳跃动作,给予额外奖励
-        if current_y_pos < 79 and action == 2 or 3 or 4:  # 假设跳跃动作的索引为4
+        if current_y_pos < 79 and action in [2, 3, 4]:  # 假设跳跃动作的索引为4
             reward += 300
 
         # Encourage collecting coins

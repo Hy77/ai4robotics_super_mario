@@ -29,18 +29,17 @@ env = make_env(skip_frames=4)
 action_size = env.action_space.n
 
 # 加载预训练的CNN模型
-# cnn_model = MarioCNN(output_size=256).to(device)
-cnn_model = torch.load('cnn_models/cnn_model_ver10.pth')
+cnn_model = MarioCNN(output_size=256).to(device)
+cnn_model.load_state_dict(torch.load('cnn_models/cnn_model_ver10.pth'))
 cnn_model.eval()
 
 agent = Agent(state_size=256, action_size=action_size)
-agent.model_local = torch.load('dqn_models/dqn_model_ver9.pth')
 
-num_episodes = 1000
+num_episodes = 500
 max_t = 10000
 eps_start = 1.0
 eps_end = 0.01
-eps_decay = 0.9995
+eps_decay = 0.995
 
 # 记录损失
 losses = []
@@ -76,7 +75,7 @@ for i_episode in range(1, num_episodes + 1):
         torch.save(agent.model_local, f'dqn_models/dqn_model_episode_{i_episode}.pth')
 
 # 绘制损失图像
-plt.plot(range(1, num_episodes + 1), losses)
+plt.plot(range(num_episodes), losses)
 plt.xlabel('Episode')
 plt.ylabel('Loss')
 plt.title('DQN Training Loss')
