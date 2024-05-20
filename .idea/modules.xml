@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/super-mario-pca-rl.iml" filepath="$PROJECT_DIR$/.idea/super-mario-pca-rl.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ai4robotics_super_mario.iml" filepath="$PROJECT_DIR$/.idea/ai4robotics_super_mario.iml" />
     </modules>
   </component>
 </project>

@@ -1,4 +1,3 @@
-# test_model.py
 import torch
 import numpy as np
 from mario_env import make_env
@@ -6,6 +5,7 @@ from cnn_model import MarioCNN
 from dqn_model import Agent
 import torchvision.transforms as T
 import matplotlib.pyplot as plt
+import gym
 import imageio
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,78 +24,75 @@ def process_state_image(state):
     state = state.unsqueeze(0)
     return state.float().to(device)
 
-def test_model(cnn_model_path, dqn_model_path, num_episodes=50, video_path='videos'):
-    env = make_env(skip_frames=1)
-    action_size = env.action_space.n
+env = make_env(skip_frames=1)
 
-    # 加载预训练的CNN模型
-    cnn_model = torch.load(cnn_model_path)
-    cnn_model.eval()
+action_size = env.action_space.n
 
-    # 加载预训练的DQN模型
-    agent = Agent(state_size=256, action_size=action_size)
-    agent.model_local = torch.load(dqn_model_path)
-    agent.model_local.eval()
+mario_cnn = torch.load('cnn_models/cnn_model_ver9.pth')
+mario_cnn = mario_cnn.to(device)  # 将 CNN 模型移到 GPU
+mario_cnn.eval()
 
-    scores = []
-    max_x_pos = 0
-    best_episode_frames = []
-    best_episode_id = 0
+agent = Agent(state_size=256, action_size=action_size)
+agent.model_local = torch.load('dqn_models/dqn_model_ver9.pth')
+agent.model_local = agent.model_local.to(device)  # 将 DQN 模型移到 GPU
+agent.model_local.eval()
 
-    for i_episode in range(1, num_episodes + 1):
-        state = env.reset()
-        state = process_state_image(state)
-        with torch.no_grad():
-            state_features = cnn_model(state).squeeze()
-        score = 0
-        episode_frames = []
+num_episodes = 50
+scores = []
+dist = 0
+max_x_pos = 0
+best_episode_frames = []
+best_episode_id = 0
+flag_get_frames = []
+flag_get_id = 0
 
-        while True:
-            action = agent.act(state_features.cpu().numpy(), eps=0.1)  # 测试时不需要探索
-            next_state, reward, done, info = env.step(action)
-            score += reward
+for i_episode in range(1, num_episodes + 1):
+    state = env.reset()
+    state = process_state_image(state)
+    state_features = mario_cnn(state).squeeze().detach()
+    score = 0
+    max_score = 0
+    done = False
+    episode_frames = []
 
-            frame = env.render(mode='rgb_array')
-            episode_frames.append(frame.copy())  # 存储当前episode的帧
+    while not done:
+        action = agent.act(state_features.cpu().numpy(), 0.1)
+        next_state, reward, done, info = env.step(action)
+        env.render()
+        frame = env.render(mode='rgb_array')
+        episode_frames.append(frame.copy())  # 存储当前episode的帧
+        score += reward
+        next_state = process_state_image(next_state)
+        next_state_features = mario_cnn(next_state).squeeze().detach()
+        state_features = next_state_features
+        dist = info['x_pos']
 
-            next_state = process_state_image(next_state)
-            with torch.no_grad():
-                next_state_features = cnn_model(next_state).squeeze()
+    scores.append(score)
+    print(f"Episode {i_episode}, Score: {score}, Distance: {dist}")
 
-            state = next_state
-            state_features = next_state_features
+    if dist > max_x_pos:
+        max_x_pos = dist
+        best_episode_frames = episode_frames  # 更新最佳episode的帧
+        best_episode_id = i_episode
 
-            if done:
-                print(f"Episode {i_episode} - Score: {score}")
-                break
+    if info['flag_get']:
+        flag_get_frames = episode_frames  # 更新得分最高的episode的帧
+        flag_get_id = i_episode
 
-        scores.append(score)
+env.close()
 
-        if info['x_pos'] > max_x_pos:
-            max_x_pos = info['x_pos']
-            best_episode_frames = episode_frames  # 更新最佳episode的帧
-            best_episode_id = i_episode
+# 保存跑得最远的那个episode的视频
+video_path = 'videos'
+writer = imageio.get_writer(f'{video_path}/best_mario_run_distance.mp4', fps=30)
+for frame in best_episode_frames:
+    writer.append_data(frame)
+writer.close()
 
-    env.close()
+# 保存得分最高的episode的视频
+writer = imageio.get_writer(f'{video_path}/flag_get_mario_run.mp4', fps=30)
+for frame in flag_get_frames:
+    writer.append_data(frame)
+writer.close()
 
-    # 保存跑得最远的那个episode的视频
-    writer = imageio.get_writer(f'{video_path}/best_mario_run_new.mp4', fps=30)
-    for frame in best_episode_frames:
-        writer.append_data(frame)
-    writer.close()
-
-    print(f"Best score: {max(scores)}; Most far episode: {best_episode_id}")
-
-    return scores
-
-if __name__ == "__main__":
-    cnn_model_path = 'cnn_models/cnn_model_ver10.pth'  # 替换为你的CNN模型路径
-    dqn_model_path = 'dqn_models/dqn_model_ver10.pth'  # 替换为你的DQN模型路径
-
-    scores = test_model(cnn_model_path, dqn_model_path, num_episodes=50)
-
-    plt.plot(range(1, len(scores) + 1), scores)
-    plt.xlabel('Episode')
-    plt.ylabel('Score')
-    plt.title('Test Scores')
-    plt.show()
+print(f"Best score: {max(scores)}; Most far episode: {i_episode}")
+print(f"Max distance: {max_x_pos}; Farthest episode: {best_episode_id}")
