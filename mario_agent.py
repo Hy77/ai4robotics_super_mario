@@ -8,13 +8,9 @@ from collections import deque
 # Define HYPERPARAMETERS
 BATCH_SIZE = 32
 LEARNING_RATE = 0.00025
-DISCOUNT_FACTOR = 0.9
-TARGET_UPDATE_FREQ = 1e4
+GAMMA = 0.9
 EXPLORATION_DECAY_RATE = 0.99999975
 MIN_EXPLORATION_RATE = 0.1
-INITIAL_MEMORY_THRESHOLD = 1e5
-LEARNING_UPDATE_FREQ = 3
-
 
 class MarioCNN(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -94,7 +90,7 @@ class MarioAgent:
         td_target = self.compute_td_target(reward, next_state, done)
         loss = self.update_online_network(td_estimate, td_target)
 
-        if self.current_step % TARGET_UPDATE_FREQ == 0:
+        if self.current_step % 1e4 == 0:
             self.synchronize_target_network()
 
         return td_estimate.mean().item(), loss
@@ -114,7 +110,7 @@ class MarioAgent:
         best_action = torch.argmax(next_state_q_values, axis=1)
         next_q_values = self.mario_model(next_state, network='target')
         next_q_values = next_q_values[np.arange(0, BATCH_SIZE), best_action]
-        return (reward + (1 - done.float()) * DISCOUNT_FACTOR * next_q_values).float()
+        return (reward + (1 - done.float()) * GAMMA * next_q_values).float()
 
     def update_online_network(self, td_estimate, td_target):
         loss = self.loss_function(td_estimate, td_target)
@@ -143,8 +139,8 @@ class MarioAgent:
         self.exploration_rate = max(MIN_EXPLORATION_RATE, self.exploration_rate)
 
     def _should_learn(self):
-        if self.current_step < INITIAL_MEMORY_THRESHOLD:
+        if self.current_step < 1e5:
             return False
-        if self.current_step % LEARNING_UPDATE_FREQ != 0:
+        if self.current_step % 3 != 0:
             return False
         return True
