@@ -19,17 +19,25 @@ LEARNING_UPDATE_FREQ = 3
 class MarioCNN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super().__init__()
-        channels, height, width = input_dim
 
         self.online_network = nn.Sequential(
-            nn.Conv2d(in_channels=channels, out_channels=32, kernel_size=8, stride=4),
+            nn.Conv2d(in_channels=input_dim[0], out_channels=32, kernel_size=8, stride=4),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
             nn.Flatten(),
-            nn.Linear(3136, 512),
+            nn.Linear(128 * 3 * 3, 512),
             nn.ReLU(),
             nn.Linear(512, output_dim)
         )
@@ -54,10 +62,8 @@ class MarioAgent:
         self.exploration_rate = 1
         self.current_step = 0
 
-        self.use_cuda = torch.cuda.is_available()
-
         self.mario_model = MarioCNN(self.state_dim, self.action_dim).float()
-        if self.use_cuda:
+        if torch.cuda.is_available():
             self.mario_model = self.mario_model.to(device='cuda')
 
         self.optimizer = torch.optim.Adam(self.mario_model.parameters(), lr=LEARNING_RATE)
@@ -67,28 +73,31 @@ class MarioAgent:
         if np.random.rand() < self.exploration_rate:
             action_index = np.random.randint(self.action_dim)
         else:
-            state_tensor = torch.FloatTensor(state).cuda() if self.use_cuda else torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = self._convert_to_tensor(state, unsqueeze=True)
             action_values = self.mario_model(state_tensor, network='online')
             action_index = torch.argmax(action_values).item()
 
-        self.exploration_rate *= EXPLORATION_DECAY_RATE
-        self.exploration_rate = max(MIN_EXPLORATION_RATE, self.exploration_rate)
-
+        self._update_exploration_rate()
         self.current_step += 1
         return action_index
 
     def store_experience(self, state, next_state, action, reward, done):
-        state = np.array(state)
-        next_state = np.array(next_state)
+        experience = self._prepare_experience(state, next_state, action, reward, done)
+        self.memory_buffer.append(experience)
 
-        state = torch.FloatTensor(state).cuda() if self.use_cuda else torch.FloatTensor(state)
-        next_state = torch.FloatTensor(next_state).cuda() if self.use_cuda else torch.FloatTensor(next_state)
-        action = torch.LongTensor([action]).cuda() if self.use_cuda else torch.LongTensor([action])
-        reward = torch.DoubleTensor([reward]).cuda() if self.use_cuda else torch.DoubleTensor([reward])
-        done = torch.BoolTensor([done]).cuda() if self.use_cuda else torch.BoolTensor([done])
+    def learn(self):
+        if not self._should_learn():
+            return None, None
 
-        self.memory_buffer.append((state, next_state, action, reward, done,))
+        state, next_state, action, reward, done = self.sample_experiences()
+        td_estimate = self.compute_td_estimate(state, action)
+        td_target = self.compute_td_target(reward, next_state, done)
+        loss = self.update_online_network(td_estimate, td_target)
+
+        if self.current_step % TARGET_UPDATE_FREQ == 0:
+            self.synchronize_target_network()
+
+        return td_estimate.mean().item(), loss
 
     def sample_experiences(self):
         batch = random.sample(self.memory_buffer, BATCH_SIZE)
@@ -101,11 +110,11 @@ class MarioAgent:
 
     @torch.no_grad()
     def compute_td_target(self, reward, next_state, done):
-        next_state_Q_values = self.mario_model(next_state, network='online')
-        best_action = torch.argmax(next_state_Q_values, axis=1)
-        next_Q_values = self.mario_model(next_state, network='target')
-        next_Q_values = next_Q_values[np.arange(0, BATCH_SIZE), best_action]
-        return (reward + (1 - done.float()) * DISCOUNT_FACTOR * next_Q_values).float()
+        next_state_q_values = self.mario_model(next_state, network='online')
+        best_action = torch.argmax(next_state_q_values, axis=1)
+        next_q_values = self.mario_model(next_state, network='target')
+        next_q_values = next_q_values[np.arange(0, BATCH_SIZE), best_action]
+        return (reward + (1 - done.float()) * DISCOUNT_FACTOR * next_q_values).float()
 
     def update_online_network(self, td_estimate, td_target):
         loss = self.loss_function(td_estimate, td_target)
@@ -117,20 +126,25 @@ class MarioAgent:
     def synchronize_target_network(self):
         self.mario_model.target_network.load_state_dict(self.mario_model.online_network.state_dict())
 
-    def learn(self):
-        if self.current_step % TARGET_UPDATE_FREQ == 0:
-            self.synchronize_target_network()
+    def _convert_to_tensor(self, data, unsqueeze=False):
+        tensor = torch.FloatTensor(data).cuda() if torch.cuda.is_available() else torch.FloatTensor(data)
+        return tensor.unsqueeze(0) if unsqueeze else tensor
 
+    def _prepare_experience(self, state, next_state, action, reward, done):
+        state = self._convert_to_tensor(state)
+        next_state = self._convert_to_tensor(next_state)
+        action = torch.LongTensor([action]).cuda() if torch.cuda.is_available() else torch.LongTensor([action])
+        reward = torch.DoubleTensor([reward]).cuda() if torch.cuda.is_available() else torch.DoubleTensor([reward])
+        done = torch.BoolTensor([done]).cuda() if torch.cuda.is_available() else torch.BoolTensor([done])
+        return state, next_state, action, reward, done
+
+    def _update_exploration_rate(self):
+        self.exploration_rate *= EXPLORATION_DECAY_RATE
+        self.exploration_rate = max(MIN_EXPLORATION_RATE, self.exploration_rate)
+
+    def _should_learn(self):
         if self.current_step < INITIAL_MEMORY_THRESHOLD:
-            return None, None
-
+            return False
         if self.current_step % LEARNING_UPDATE_FREQ != 0:
-            return None, None
-
-        state, next_state, action, reward, done = self.sample_experiences()
-        td_estimate = self.compute_td_estimate(state, action)
-        td_target = self.compute_td_target(reward, next_state, done)
-        loss = self.update_online_network(td_estimate, td_target)
-
-        return td_estimate.mean().item(), loss
-
+            return False
+        return True

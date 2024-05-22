@@ -2,8 +2,7 @@ import gym
 import gym_super_mario_bros
 from nes_py.wrappers import JoypadSpace
 import cv2
-import random, datetime, numpy as np
-from skimage import transform
+import numpy as np
 from gym.wrappers import FrameStack, GrayScaleObservation, TransformObservation
 from gym.spaces import Box
 
@@ -11,7 +10,7 @@ from gym.spaces import Box
 def make_env(skip_frames):
     env = gym_super_mario_bros.make('SuperMarioBros-1-1-v0')
     env = SkipFrame(env, skip=skip_frames)
-    env = JoypadSpace(env, [['right'], ['right', 'A']])
+    env = JoypadSpace(env, [['right'], ['right', 'A']])  # RIGHT AND JUMP ONLY
     env = GrayScaleObservation(env, keep_dim=False)
     env = ResizeObv(env, shape=84)
     env = TransformObservation(env, f=lambda x: x / 255.)

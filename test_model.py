@@ -1,9 +1,5 @@
 import torch
 from pathlib import Path
-import gym
-import gym_super_mario_bros
-from gym.wrappers import FrameStack, GrayScaleObservation, TransformObservation
-from nes_py.wrappers import JoypadSpace
 from mario_agent import MarioAgent
 from mario_env import make_env
 import imageio
@@ -15,7 +11,7 @@ pre_trained_model = Path('comb_mario_models/mario_model_50000.pth')  # Path to t
 mario = MarioAgent(state_dim=(4, 84, 84), action_dim=env.action_space.n)
 
 if pre_trained_model.exists():
-    pre_trained = torch.load(pre_trained_model, map_location=('cuda' if mario.use_cuda else 'cpu'))
+    pre_trained = torch.load(pre_trained_model, map_location=('cuda' if torch.cuda.is_available() else 'cpu'))
     mario.mario_model.load_state_dict(pre_trained.get('model'))
     mario.exploration_rate = pre_trained.get('exploration_rate')
 

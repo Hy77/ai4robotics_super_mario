@@ -9,7 +9,7 @@ pre_trained_model = None  # Path of model
 mario = MarioAgent(state_dim=(4, 84, 84), action_dim=env.action_space.n)
 
 if pre_trained_model is not None:
-    pre_trained = torch.load(pre_trained_model, map_location=('cuda' if mario.use_cuda else 'cpu'))
+    pre_trained = torch.load(pre_trained_model, map_location=('cuda' if torch.cuda.is_available() else 'cpu'))
     mario.mario_model.load_state_dict(pre_trained.get('model'))
     mario.exploration_rate = pre_trained.get('exploration_rate')
 
@@ -56,4 +56,4 @@ for episode in range(episodes):
     # Save model every 1000 episodes
     if episode % 1000 == 0:
         torch.save(dict(model=mario.mario_model.state_dict(), exploration_rate=mario.exploration_rate),
-                   f"models/mario_model_{episode}.pth")
+                   f"comb_mario_models/mario_model_{episode}.pth")
