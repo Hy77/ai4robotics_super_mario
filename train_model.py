@@ -1,80 +1,59 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
+from mario_agent import MarioAgent, MarioCNN
 from mario_env import make_env
-from cnn_model import MarioCNN
-from dqn_model import Agent
-import torchvision.transforms as T
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+env = make_env(4)
+env.reset()
 
-transform = T.Compose([
-    T.ToTensor(),
-    T.Resize((84, 84)),
-    T.Normalize(mean=[0.5], std=[0.5])
-])
+pre_trained_model = None  # Path of model
+mario = MarioAgent(state_dim=(4, 84, 84), action_dim=env.action_space.n)
 
-def process_state_image(state):
-    state = np.array(state)
-    state = np.squeeze(state)  # 去除多余的维度
-    state = np.transpose(state, (1, 2, 0))  # 将通道维度移到最后
-    state = transform(state)
-    state = state.unsqueeze(0)  # 添加批次维度
-    return state.float().to(device)
+if pre_trained_model is not None:
+    pre_trained = torch.load(pre_trained_model, map_location=('cuda' if mario.use_cuda else 'cpu'))
+    mario.mario_model.load_state_dict(pre_trained.get('model'))
+    mario.exploration_rate = pre_trained.get('exploration_rate')
 
-env = make_env(skip_frames=4)
-action_size = env.action_space.n
-mario_cnn = MarioCNN(output_size=256).to(device)
-agent = Agent(state_size=256, action_size=action_size)
+episodes = 50000
 
-# Load pre-trained models if available
-mario_cnn = mario_cnn.to(device)
-agent.model_local = agent.model_local.to(device)  # 将DQN模型移到GPU上
-agent.model_target = agent.model_target.to(device)
+for episode in range(episodes):
 
-# 定义CNN模型的损失函数和优化器
-cnn_criterion = nn.MSELoss()
-cnn_optimizer = optim.Adam(mario_cnn.parameters(), lr=1e-3)
-
-num_episodes = 500
-max_t = 10000
-eps_start = 1.0
-eps_end = 0.01
-eps_decay = 0.995
-
-for i_episode in range(1, num_episodes + 1):
     state = env.reset()
-    state = process_state_image(state)
-    state_features = mario_cnn(state).squeeze().detach()
-    score = 0
-    eps = max(eps_end, eps_start * (eps_decay ** i_episode))
 
-    for t in range(max_t):
-        action = agent.act(state_features.cpu().numpy(), eps)
+    episode_reward = 0
+    episode_loss = 0
+    episode_loss_length = 0
+
+    while True:
+        action = mario.select_action(state)
         next_state, reward, done, info = env.step(action)
-        max_x_pos = info['x_pos']
-        score += reward
-        env.render()
-        next_state = process_state_image(next_state)
-        next_state_features = mario_cnn(next_state).squeeze().detach()
-        predicted_features = mario_cnn(next_state).squeeze()
+        mario.store_experience(state, next_state, action, reward, done)
 
-        cnn_loss = cnn_criterion(predicted_features, next_state_features.detach())
+        q, loss = mario.learn()
 
-        # 反向传播并更新CNN模型的参数
-        cnn_optimizer.zero_grad()
-        cnn_loss.backward()
-        cnn_optimizer.step()
+        episode_reward += reward
+        if loss:
+            episode_loss += loss
+            episode_loss_length += 1
 
-        dqn_loss = agent.step(state_features, action, reward, next_state_features, done, info)
         state = next_state
-        state_features = next_state_features
 
-        if done:
-            print(f"Episode {i_episode} - Score: {score} - Max X Position: {max_x_pos} - Eps: {eps:.2f} - CNN Loss: {cnn_loss:.4f} - DQN Loss: {dqn_loss:.4f}")
+        if done or info['flag_get']:
             break
 
-    if i_episode % 500 == 0:
-        torch.save(mario_cnn, f'cnn_models/cnn_model_episode_{i_episode}.pth')
-        torch.save(agent.model_local, f'dqn_models/dqn_model_episode_{i_episode}.pth')
+    if episode_loss_length == 0:
+        episode_loss = 0
+    else:
+        episode_loss /= episode_loss_length
+
+    print(
+        f"Episode {episode} - "
+        f"Step {mario.current_step} - "
+        f"Epsilon {mario.exploration_rate} - "
+        f"Reward {episode_reward} - "
+        f"Loss {episode_loss:.3f}"
+    )
+
+    # Save model every 1000 episodes
+    if episode % 1000 == 0:
+        torch.save(dict(model=mario.mario_model.state_dict(), exploration_rate=mario.exploration_rate),
+                   f"models/mario_model_{episode}.pth")
