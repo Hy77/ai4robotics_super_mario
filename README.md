@@ -33,7 +33,7 @@ This project implements a deep learning framework using a Convolutional Neural N
 
   ```
   pip install gym_super_mario_bros
-  ``
+  ```
   
 ## Files
 
