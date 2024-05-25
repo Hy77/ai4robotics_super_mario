@@ -71,7 +71,7 @@ In the first version, the CNN and DQN were trained separately. The CNN was train
 
 (Trained approx **20k** episodes totally - including testing)
 
-![Version 1 GIF](videos/gif_s/best_mario_run_ver9.gif)
+![Version 1 GIF](videos/gif_s/best_mario_run_distance_eps_2k_ver11.gif)
 
 ### Version 2: Training CNN and DQN Together (Current Version)
 

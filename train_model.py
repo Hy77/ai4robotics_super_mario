@@ -15,7 +15,7 @@ if pre_trained_model is not None:
 
 episodes = 50000
 
-for episode in range(episodes):
+for episode in range(1, episodes + 1):
 
     state = env.reset()
 

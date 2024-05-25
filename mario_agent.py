@@ -65,6 +65,7 @@ class MarioAgent:
         self.optimizer = torch.optim.Adam(self.mario_model.parameters(), lr=LEARNING_RATE)
         self.loss_function = torch.nn.SmoothL1Loss()
 
+    # Select action based on exploration rate or model prediction
     def select_action(self, state):
         if np.random.rand() < self.exploration_rate:
             action_index = np.random.randint(self.action_dim)
@@ -77,10 +78,12 @@ class MarioAgent:
         self.current_step += 1
         return action_index
 
+    # Store experience in memory buffer
     def store_experience(self, state, next_state, action, reward, done):
         experience = self._prepare_experience(state, next_state, action, reward, done)
         self.memory_buffer.append(experience)
 
+    # Learning process
     def learn(self):
         if not self._should_learn():
             return None, None
@@ -95,14 +98,15 @@ class MarioAgent:
 
         return td_estimate.mean().item(), loss
 
+    # Sample experiences from memory buffer
     def sample_experiences(self):
         batch = random.sample(self.memory_buffer, BATCH_SIZE)
         state, next_state, action, reward, done = map(torch.stack, zip(*batch))
         return state, next_state, action.squeeze(), reward.squeeze(), done.squeeze()
 
     def compute_td_estimate(self, state, action):
-        current_Q_values = self.mario_model(state, network='online')[np.arange(0, BATCH_SIZE), action]
-        return current_Q_values
+        current_q_values = self.mario_model(state, network='online')[np.arange(0, BATCH_SIZE), action]
+        return current_q_values
 
     @torch.no_grad()
     def compute_td_target(self, reward, next_state, done):
@@ -112,6 +116,7 @@ class MarioAgent:
         next_q_values = next_q_values[np.arange(0, BATCH_SIZE), best_action]
         return (reward + (1 - done.float()) * GAMMA * next_q_values).float()
 
+    # Prepare experience for storage
     def update_online_network(self, td_estimate, td_target):
         loss = self.loss_function(td_estimate, td_target)
         self.optimizer.zero_grad()
@@ -138,6 +143,7 @@ class MarioAgent:
         self.exploration_rate *= EXPLORATION_DECAY_RATE
         self.exploration_rate = max(MIN_EXPLORATION_RATE, self.exploration_rate)
 
+    # Check if the agent should learn
     def _should_learn(self):
         if self.current_step < 1e5:
             return False
