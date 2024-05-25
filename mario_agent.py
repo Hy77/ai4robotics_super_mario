@@ -18,22 +18,13 @@ class MarioCNN(nn.Module):
 
         self.online_network = nn.Sequential(
             nn.Conv2d(in_channels=input_dim[0], out_channels=32, kernel_size=8, stride=4),
-            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
-            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1),
-            nn.BatchNorm2d(128),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-
             nn.Flatten(),
-            nn.Linear(128 * 3 * 3, 512),
+            nn.Linear(3136, 512),
             nn.ReLU(),
             nn.Linear(512, output_dim)
         )

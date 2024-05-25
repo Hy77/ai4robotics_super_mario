@@ -85,6 +85,14 @@ BEST MODEL: `comb_mario_models/mario_model_50000.pth`
 
 ![Version 2 GIF](videos/gif_s/best_mario_run_flag_get.gif)
 
+### Evaluation Test Metric: Epsilon Decay Test
+
+To further evaluate the effectiveness of the training, an additional test was conducted with 100 episodes. For the first 50 episodes, the agent used an epsilon value of 1 (completely random actions). For the subsequent 50 episodes, the epsilon value was gradually reduced to 0.1, encouraging the agent to exploit its learned policy.
+
+The reward graph below shows the agent's performance over these 100 episodes. It is evident that the agent's performance improves significantly when it starts to exploit its learned policy, as indicated by the increase in rewards. When the reward is around 3000, it indicates that Mario successfully reached the flag and completed the level.
+
+![Reward vs Episode](Reward_vs_Episode.png)
+
 ## Conclusion
 
 The combination of CNN and DQN provides a powerful framework for training AI agents to play Super Mario Bros. By training the CNN and DQN together, the agent learns to extract meaningful features and make informed decisions, resulting in improved performance and level completion. This project showcases the effectiveness of deep reinforcement learning techniques in tackling complex game environments.
